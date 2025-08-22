@@ -5,6 +5,7 @@
       "Bash(pytest:*)",
       "Bash(python:*)",
       "Bash(pre-commit:*)",
+      "Bash(screencap:*)",
       "Bash(uv:*)"
     ],
     "deny": [ ]
