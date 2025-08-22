@@ -1,0 +1,77 @@
+[project]
+name = "screencap"
+version = "0.1.0"
+authors = [
+    { name = "pythoninthegrass", email = "4097471+pythoninthegrass@users.noreply.github.com" }
+]
+
+requires-python = ">=3.13,<3.14"
+
+dependencies = [
+    "python-decouple>=3.8",
+    "sh>=2.2.2",
+]
+
+[project.optional-dependencies]
+test = [
+    "coverage<8.0.0,>=7.6.1",
+    "hypothesis[cli]<7.0.0,>=6.112.1",
+    "pytest<9.0.0,>=8.3.3",
+    "pytest-asyncio<1.0.0,>=0.24.0",
+    "pytest-cov>=6.1.1",
+    "pytest-datafiles<4.0.0,>=3.0.0",
+    "pytest-xdist<4.0.0,>=3.6.1",
+]
+
+[tool.deptry]
+# DEP003: transitive deps
+ignore = [
+    "DEP003"
+]
+
+[tool.deptry.per_rule_ignores]
+# DEP002: not used in codebase (excluding dev deps)
+DEP002 = [
+    "deptry",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "uvicorn"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+asyncio_mode = "auto"
+markers = [
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+    "e2e: marks tests as end-to-end tests",
+    "benchmark: marks performance benchmark tests"
+]
+addopts = [
+    "--strict-markers",
+    "--strict-config"
+]
+
+[tool.coverage.run]
+source = ["screencap"]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
+    "*/alembic/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "pass",
+    "..."
+]
