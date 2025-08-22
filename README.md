@@ -8,6 +8,9 @@ Python implementation of John Maeda's [bash solution](https://maeda.pm/2024/11/1
 
 * [Python 3.13](https://www.python.org/downloads/release/python-3130/)
 * [uv](https://docs.astral.sh/uv/)
+* [homebrew](https://brew.sh/)
+* [getwindowid](https://github.com/smokris/GetWindowID)
+  * `brew install smokris/getwindowid/getwindowid`
 
 ## Recommended Requirements
 
