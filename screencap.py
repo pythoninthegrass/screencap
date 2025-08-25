@@ -21,8 +21,8 @@ Note:
         Multi-word app names: screencap "visual studio code"
 """
 
+import argparse
 import re
-import shlex
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -141,37 +141,40 @@ def capture_screenshot(window_id, window_title=None, output_file=None):
 
 
 def main():
-    if len(sys.argv) < 2 or (len(sys.argv) == 2 and sys.argv[1] in ["-h", "--help"]):
-        help()
-    if len(sys.argv) == 2 and sys.argv[1] == "--list":
+    parser = argparse.ArgumentParser(
+        description="Find and capture screenshots of application windows.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  screencap Firefox
+  screencap --auto Terminal
+  screencap "Visual Studio Code"
+  screencap --auto TextEdit ~/screenshot.png
+  screencap --list
+
+Note: Multi-word app names should be quoted.
+        """.strip(),
+    )
+
+    parser.add_argument('app_name', nargs='?', help='Partial application name to search for')
+    parser.add_argument('output_file', nargs='?', help='Output file path (optional)')
+    parser.add_argument('--auto', action='store_true', help='Automatically select the first window (no prompt)')
+    parser.add_argument('--list', action='store_true', help='List all visible applications')
+
+    args = parser.parse_args()
+
+    if args.list:
         print("Visible applications:")
         for app in sorted(get_visible_apps()):
             print(f"  {app}")
         sys.exit(0)
-    try:
-        args = shlex.split(' '.join(sys.argv[1:]))
-    except ValueError as e:
-        print(f"Error parsing arguments: {e}")
-        sys.exit(1)
-    auto_select = False
-    while args and args[0].startswith('--'):
-        flag = args.pop(0)
-        if flag == "--auto":
-            auto_select = True
-        elif flag in ["-h", "--help"]:
-            help()
-        else:
-            print(f"Unknown flag: {flag}")
-            sys.exit(1)
-    if not args:
-        print("Error: Missing app name")
-        sys.exit(1)
-    if len(args) > 1 and '.' in args[-1] and ' ' not in args[-1]:
-        search_pattern = args[0] if len(args) == 2 else ' '.join(args[:-1])
-        output_file = args[-1]
-    else:
-        search_pattern = args[0] if len(args) == 1 else ' '.join(args)
-        output_file = None
+
+    if not args.app_name:
+        parser.error("Missing app name")
+
+    search_pattern = args.app_name
+    output_file = args.output_file
+    auto_select = args.auto
 
     visible_apps = get_visible_apps()
     if not visible_apps:

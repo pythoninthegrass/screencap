@@ -217,13 +217,14 @@ class TestScreencapIntegration:
         """Test error handling for invalid arguments."""
         # Missing app name
         result = self.run_screencap()
-        assert result.returncode == 0  # Help message returns 0
-        assert "Usage:" in result.stdout
+        assert result.returncode == 2  # argparse returns 2 for missing required args
+        assert "usage:" in result.stderr
+        assert "Missing app name" in result.stderr
 
         # Invalid flag
         result = self.run_screencap("--invalid-flag", "Terminal")
-        assert result.returncode != 0
-        assert "Unknown flag" in result.stdout
+        assert result.returncode == 2  # argparse returns 2 for invalid arguments
+        assert "unrecognized arguments" in result.stderr
 
     @pytest.mark.integration
     def test_quoted_arguments(self, screenshot_dir):
