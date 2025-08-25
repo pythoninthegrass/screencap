@@ -34,6 +34,29 @@ def help():
     sys.exit(0)
 
 
+def should_filter_window(window_title, width, height):
+    """Determine if a window should be filtered out based on size and title."""
+    # Filter zero-size windows
+    if width == 0 or height == 0:
+        return True
+
+    # Filter small windows (likely UI elements)
+    if width < 300 and height < 200:
+        return True
+
+    # Filter UI elements and system dialogs
+    ui_elements = {"New Command", "New Window", "New Tab", "Open", "Close", "Save"}
+    if window_title in ui_elements or "\n" in window_title:
+        return True
+
+    # Filter empty square windows (likely system UI)
+    if window_title == "" and width == height:
+        return True
+
+    # Filter empty titles without proper content indicators
+    return window_title == "" and " — " not in window_title
+
+
 def get_screenshot_dir():
     """Get the screenshot directory from config or default to ~/Desktop."""
     env_file = Path.cwd() / '.env'
@@ -81,53 +104,92 @@ def find_matching_apps(apps, search_pattern):
     return sorted(word_matches, key=lambda x: len(x))
 
 
+def get_app_name_variations(app_name):
+    """Generate common variations of an app name for matching."""
+    variations = [
+        app_name,               # Original
+        app_name.lower(),       # lowercase
+        app_name.capitalize(),  # First letter capitalized
+        app_name.upper(),       # UPPERCASE
+        app_name.title(),       # Title Case
+    ]
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(variations))
+
+
+def try_get_windows(name):
+    """Attempt to get windows for a specific app name."""
+    try:
+        print(f"Trying application name: \"{name}\"")
+        output = getwindowid(name, "--list", _ok_code=[0, 1])
+        if output.strip():
+            windows = [line for line in output.strip().split('\n') if line]
+            if windows:
+                print("Found windows:")
+                for w in windows:
+                    print(w)
+                return windows
+    except ErrorReturnCode:
+        pass
+    return []
+
+
 def get_window_info(app_name, visible_apps=None):
     """Get window information for the specified application."""
     print(f"=== Checking windows for \"{app_name}\" ===")
-    names = list(dict.fromkeys([app_name, app_name.lower(), app_name.capitalize(), app_name.upper(), app_name.title()]))
-    windows = []
-    for name in names:
-        try:
-            print(f"Trying application name: \"{name}\"")
-            output = getwindowid(name, "--list", _ok_code=[0, 1])
-            if output.strip():
-                windows.extend(line for line in output.strip().split('\n') if line)
-                if windows:
-                    print("Found windows:")
-                    for w in windows:
-                        print(w)
-                    return windows
-        except ErrorReturnCode:
-            continue
 
-    if not windows and visible_apps:
+    # Try exact name variations first
+    name_variations = get_app_name_variations(app_name)
+
+    for name in name_variations:
+        if windows := try_get_windows(name):
+            return windows
+
+    # Try fuzzy matches if no exact matches found
+    if visible_apps:
         matched_apps = find_matching_apps(visible_apps, app_name)
         for matched_app in matched_apps:
             if matched_app.lower() != app_name.lower():
                 print(f"Trying fuzzy match: \"{matched_app}\"")
-                try:
-                    output = getwindowid(matched_app, "--list", _ok_code=[0, 1])
-                    if output.strip():
-                        windows.extend(line for line in output.strip().split('\n') if line)
-                        if windows:
-                            print("Found windows:")
-                            for w in windows:
-                                print(w)
-                            return windows
-                except ErrorReturnCode:
-                    continue
+                if windows := try_get_windows(matched_app):
+                    return windows
 
-    if not windows:
-        print(f"No windows found for \"{app_name}\".")
-    return windows
+    print(f"No windows found for \"{app_name}\".")
+    return []
+
+
+def generate_screenshot_filename(window_title, timestamp):
+    """Generate a clean filename for the screenshot."""
+    clean_title = window_title.replace("/", "-").replace(":", "-").strip() if window_title else "Window"
+
+    date_str = timestamp.strftime('%Y-%m-%d')
+    time_str = timestamp.strftime('%-I.%M.%S %p')
+
+    return f"Screenshot {clean_title} {date_str} at {time_str}.png"
+
+
+def parse_window_info(window_info):
+    """Parse a single window info string into structured data."""
+    id_match = re.search(r'id=(\d+)', window_info)
+    if not id_match:
+        return None
+
+    window_id = id_match.group(1)
+    title_match = re.match(r'"([^"]*)"', window_info)
+    window_title = title_match.group(1) if title_match else ""
+
+    width = height = 0
+    if size_match := re.search(r'size=(\d+)x(\d+)', window_info):
+        width, height = int(size_match.group(1)), int(size_match.group(2))
+
+    return {'id': window_id, 'title': window_title, 'width': width, 'height': height, 'raw': window_info}
 
 
 def capture_screenshot(window_id, window_title=None, output_file=None):
     """Capture a screenshot of the specified window."""
     if not output_file:
         timestamp = datetime.now()
-        clean_title = window_title.replace("/", "-").replace(":", "-").strip() if window_title else "Window"
-        filename = f"Screenshot {clean_title} {timestamp.strftime('%Y-%m-%d')} at {timestamp.strftime('%-I.%M.%S %p')}.png"
+        filename = generate_screenshot_filename(window_title, timestamp)
         output_file = get_screenshot_dir() / filename
     else:
         output_file = Path(output_file)
@@ -141,19 +203,26 @@ def capture_screenshot(window_id, window_title=None, output_file=None):
 
 
 def main():
+    import platform
+    from textwrap import dedent
+
+    if platform.system() != "Darwin":
+        print("This script is intended to run on macOS only.")
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(
         description="Find and capture screenshots of application windows.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  screencap Firefox
-  screencap --auto Terminal
-  screencap "Visual Studio Code"
-  screencap --auto TextEdit ~/screenshot.png
-  screencap --list
+        epilog=dedent("""
+            Examples:
+              screencap Firefox
+              screencap --auto Terminal
+              screencap "Visual Studio Code"
+              screencap --auto TextEdit ~/screenshot.png
+              screencap --list
 
-Note: Multi-word app names should be quoted.
-        """.strip(),
+            Note: Multi-word app names should be quoted.
+            """).strip(),
     )
 
     parser.add_argument('app_name', nargs='?', help='Partial application name to search for')
@@ -199,25 +268,10 @@ Note: Multi-word app names should be quoted.
 
     parsed_windows = []
     for app_name, window_info in all_windows:
-        if not (id_match := re.search(r'id=(\d+)', window_info)):
-            continue
-        window_id = id_match.group(1)
-        title_match = re.match(r'"([^"]*)"', window_info)
-        window_title = title_match.group(1) if title_match else ""
-        if size_match := re.search(r'size=(\d+)x(\d+)', window_info):
-            width, height = int(size_match.group(1)), int(size_match.group(2))
-            if (
-                width == 0
-                or height == 0
-                or (width < 300 and height < 200)
-                or "\n" in window_title
-                or (window_title == "" and width == height)
-                or window_title in ["New Command", "New Window", "New Tab", "Open", "Close", "Save"]
-            ):
-                continue
-        if window_title == "" and " — " not in window_title:
-            continue
-        parsed_windows.append({'app': app_name, 'id': window_id, 'title': window_title, 'raw': window_info})
+        if parsed := parse_window_info(window_info):
+            parsed['app'] = app_name
+            if not should_filter_window(parsed['title'], parsed['width'], parsed['height']):
+                parsed_windows.append(parsed)
 
     if not parsed_windows:
         print("Could not parse window information.")
@@ -252,9 +306,4 @@ Note: Multi-word app names should be quoted.
 
 
 if __name__ == "__main__":
-    import platform
-
-    if platform.system() != "Darwin":
-        print("This script is intended to run on macOS only.")
-        sys.exit(1)
     main()
