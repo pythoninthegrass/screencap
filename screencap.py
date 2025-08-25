@@ -36,25 +36,16 @@ def help():
 
 def should_filter_window(window_title, width, height):
     """Determine if a window should be filtered out based on size and title."""
-    # Filter zero-size windows
-    if width == 0 or height == 0:
-        return True
-
-    # Filter small windows (likely UI elements)
-    if width < 300 and height < 200:
-        return True
-
-    # Filter UI elements and system dialogs
     ui_elements = {"New Command", "New Window", "New Tab", "Open", "Close", "Save"}
-    if window_title in ui_elements or "\n" in window_title:
-        return True
-
-    # Filter empty square windows (likely system UI)
-    if window_title == "" and width == height:
-        return True
-
-    # Filter empty titles without proper content indicators
-    return window_title == "" and " — " not in window_title
+    return (
+        width == 0
+        or height == 0
+        or (width < 300 and height < 200)
+        or window_title in ui_elements
+        or "\n" in window_title
+        or (window_title == "" and width == height)
+        or (window_title == "" and " — " not in window_title)
+    )
 
 
 def get_screenshot_dir():
@@ -86,30 +77,16 @@ def get_visible_apps():
 def find_matching_apps(apps, search_pattern):
     """Find apps that match the search pattern using fuzzy matching."""
     search_lower = search_pattern.lower()
-    exact_matches = [app for app in apps if app.lower() == search_lower]
-    if exact_matches:
-        return exact_matches
-
-    partial_matches = [app for app in apps if search_lower in app.lower()]
-    if partial_matches:
-        return sorted(partial_matches, key=lambda x: (x.lower().find(search_lower), len(x)))
-
-    search_words = search_lower.split()
-    word_matches = [app for app in apps if all(word in app.lower() for word in search_words)]
-    return sorted(word_matches, key=lambda x: len(x))
+    return (
+        [app for app in apps if app.lower() == search_lower]
+        or sorted([app for app in apps if search_lower in app.lower()], key=lambda x: (x.lower().find(search_lower), len(x)))
+        or sorted([app for app in apps if all(word in app.lower() for word in search_lower.split())], key=lambda x: len(x))
+    )
 
 
 def get_app_name_variations(app_name):
     """Generate common variations of an app name for matching."""
-    variations = [
-        app_name,               # Original
-        app_name.lower(),       # lowercase
-        app_name.capitalize(),  # First letter capitalized
-        app_name.upper(),       # UPPERCASE
-        app_name.title(),       # Title Case
-    ]
-    # Remove duplicates while preserving order
-    return list(dict.fromkeys(variations))
+    return list(dict.fromkeys([app_name, app_name.lower(), app_name.capitalize(), app_name.upper(), app_name.title()]))
 
 
 def try_get_windows(name):
@@ -154,13 +131,9 @@ def get_window_info(app_name, visible_apps=None):
 
 def generate_screenshot_filename(window_title, timestamp):
     """Generate a clean filename for the screenshot."""
-    char_map = str.maketrans({"/": "-", ":": "-"})
-    clean_title = window_title.translate(char_map).strip() if window_title else "Window"
-
-    date_str = timestamp.strftime('%Y-%m-%d')
-    time_str = timestamp.strftime('%-I.%M.%S %p')
-
-    return f"Screenshot {clean_title} {date_str} at {time_str}.png"
+    clean_title = window_title.translate(str.maketrans({"/": "-", ":": "-"})).strip() if window_title else ""
+    title_part = f"{clean_title} " if clean_title else ""
+    return f"Screenshot {title_part}{timestamp.strftime('%Y-%m-%d')} at {timestamp.strftime('%-I.%M.%S %p')}.png"
 
 
 def parse_window_info(window_info):
@@ -182,12 +155,9 @@ def parse_window_info(window_info):
 
 def capture_screenshot(window_id, window_title=None, output_file=None):
     """Capture a screenshot of the specified window."""
-    if not output_file:
-        timestamp = datetime.now()
-        filename = generate_screenshot_filename(window_title, timestamp)
-        output_file = get_screenshot_dir() / filename
-    else:
-        output_file = Path(output_file)
+    output_file = (
+        Path(output_file) if output_file else get_screenshot_dir() / generate_screenshot_filename(window_title, datetime.now())
+    )
     try:
         screencapture("-l", window_id, str(output_file))
         print(f"Screenshot saved to: {output_file}")
@@ -235,9 +205,7 @@ def main():
     if not args.app_name:
         parser.error("Missing app name")
 
-    search_pattern = args.app_name
-    output_file = args.output_file
-    auto_select = args.auto
+    search_pattern, output_file, auto_select = args.app_name, args.output_file, args.auto
 
     visible_apps = get_visible_apps()
     if not visible_apps:
@@ -249,14 +217,18 @@ def main():
         print(f"Found windows for \"{search_pattern}\"")
     else:
         matched_apps = find_matching_apps(visible_apps, search_pattern)
+
         if not matched_apps:
             print(f"No matching applications found for \"{search_pattern}\".")
             sys.exit(1)
+
         print(f"Found matching applications for \"{search_pattern}\":")
+
         [
             print(f"  {app}") or all_windows.extend((app, w) for w in get_window_info(app, visible_apps) if w)
             for app in matched_apps
         ]
+
     if not all_windows:
         print("No windows found to capture.")
         sys.exit(1)
@@ -280,6 +252,7 @@ def main():
     else:
         print(f"\nFound {len(parsed_windows)} windows:")
         [print(f"{i}. {window['app']}: {window['title'] or '[No Title]'}") for i, window in enumerate(parsed_windows, 1)]
+
         while True:
             try:
                 choice = input(f"\nSelect window to capture (1-{len(parsed_windows)}) [1]: ").strip() or "1"
@@ -293,9 +266,12 @@ def main():
             except KeyboardInterrupt:
                 print("\nCancelled.")
                 sys.exit(0)
+
     if selected_window['title']:
         print(f"\nWindow title: {selected_window['title']}")
+
     print(f"Capturing screenshot of window {selected_window['id']} from {selected_window['app']}...")
+
     capture_screenshot(selected_window['id'], selected_window['app'], output_file)
 
 
