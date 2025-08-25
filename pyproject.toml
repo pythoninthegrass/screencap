@@ -13,14 +13,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+    "pyclean>=3.1.0",
+    "ruff>=0.12.10",
+]
+
 test = [
-    "coverage<8.0.0,>=7.6.1",
-    "hypothesis[cli]<7.0.0,>=6.112.1",
-    "pytest<9.0.0,>=8.3.3",
-    "pytest-asyncio<1.0.0,>=0.24.0",
-    "pytest-cov>=6.1.1",
-    "pytest-datafiles<4.0.0,>=3.0.0",
-    "pytest-xdist<4.0.0,>=3.6.1",
+    "coverage>=7.10.5",
+    "hypothesis>=6.138.3",
+    "mypy>=1.17.1",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
+    "pytest-xdist>=3.8.0",
 ]
 
 [tool.deptry]
