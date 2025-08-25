@@ -59,14 +59,30 @@ def get_visible_apps():
 
 
 def find_matching_apps(apps, search_pattern):
-    """Find apps that match the search pattern."""
-    return [app for app in apps if search_pattern.lower() in app.lower()]
+    """Find apps that match the search pattern using fuzzy matching."""
+    search_lower = search_pattern.lower()
+    exact_matches = [app for app in apps if app.lower() == search_lower]
+    if exact_matches:
+        return exact_matches
+    
+    partial_matches = [app for app in apps if search_lower in app.lower()]
+    if partial_matches:
+        return sorted(partial_matches, key=lambda x: (x.lower().find(search_lower), len(x)))
+    
+    word_matches = []
+    search_words = search_lower.split()
+    for app in apps:
+        app_lower = app.lower()
+        if all(word in app_lower for word in search_words):
+            word_matches.append(app)
+    
+    return sorted(word_matches, key=lambda x: len(x))
 
 
-def get_window_info(app_name):
+def get_window_info(app_name, visible_apps=None):
     """Get window information for the specified application."""
     print(f"=== Checking windows for \"{app_name}\" ===")
-    names = list(dict.fromkeys([app_name, app_name.lower(), app_name.capitalize(), app_name.upper()]))
+    names = list(dict.fromkeys([app_name, app_name.lower(), app_name.capitalize(), app_name.upper(), app_name.title()]))
     windows = []
     for name in names:
         try:
@@ -81,6 +97,24 @@ def get_window_info(app_name):
                     return windows
         except ErrorReturnCode:
             continue
+    
+    if not windows and visible_apps:
+        matched_apps = find_matching_apps(visible_apps, app_name)
+        for matched_app in matched_apps:
+            if matched_app.lower() != app_name.lower():
+                print(f"Trying fuzzy match: \"{matched_app}\"")
+                try:
+                    output = getwindowid(matched_app, "--list", _ok_code=[0, 1])
+                    if output.strip():
+                        windows.extend(line for line in output.strip().split('\n') if line)
+                        if windows:
+                            print("Found windows:")
+                            for w in windows:
+                                print(w)
+                            return windows
+                except ErrorReturnCode:
+                    continue
+    
     if not windows:
         print(f"No windows found for \"{app_name}\".")
     return windows
@@ -137,22 +171,23 @@ def main():
         search_pattern = args[0] if len(args) == 1 else ' '.join(args)
         output_file = None
 
-    all_windows = [(search_pattern, w) for w in get_window_info(search_pattern) if w]
+    visible_apps = get_visible_apps()
+    if not visible_apps:
+        print("No visible applications found.")
+        sys.exit(1)
+    
+    all_windows = [(search_pattern, w) for w in get_window_info(search_pattern, visible_apps) if w]
     if all_windows:
         print(f"Found windows for \"{search_pattern}\"")
     else:
-        visible_apps = get_visible_apps()
-        if not visible_apps:
-            print("No visible applications found.")
-            sys.exit(1)
         matched_apps = find_matching_apps(visible_apps, search_pattern)
         if not matched_apps:
             print(f"No matching applications found for \"{search_pattern}\".")
             sys.exit(1)
-        print("Matched applications:")
+        print(f"Found matching applications for \"{search_pattern}\":")
         for app in matched_apps:
-            print(app)
-            all_windows.extend((app, w) for w in get_window_info(app) if w)
+            print(f"  {app}")
+            all_windows.extend((app, w) for w in get_window_info(app, visible_apps) if w)
     if not all_windows:
         print("No windows found to capture.")
         sys.exit(1)
@@ -162,7 +197,8 @@ def main():
         if not (id_match := re.search(r'id=(\d+)', window_info)):
             continue
         window_id = id_match.group(1)
-        window_title = (re.match(r'"([^"]*)"', window_info) or type('', (), {'group': lambda _: ""})()).group(1)
+        title_match = re.match(r'"([^"]*)"', window_info)
+        window_title = title_match.group(1) if title_match else ""
         if size_match := re.search(r'size=(\d+)x(\d+)', window_info):
             width, height = int(size_match.group(1)), int(size_match.group(2))
             if (
