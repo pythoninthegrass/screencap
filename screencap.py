@@ -94,13 +94,8 @@ def find_matching_apps(apps, search_pattern):
     if partial_matches:
         return sorted(partial_matches, key=lambda x: (x.lower().find(search_lower), len(x)))
 
-    word_matches = []
     search_words = search_lower.split()
-    for app in apps:
-        app_lower = app.lower()
-        if all(word in app_lower for word in search_words):
-            word_matches.append(app)
-
+    word_matches = [app for app in apps if all(word in app.lower() for word in search_words)]
     return sorted(word_matches, key=lambda x: len(x))
 
 
@@ -126,8 +121,7 @@ def try_get_windows(name):
             windows = [line for line in output.strip().split('\n') if line]
             if windows:
                 print("Found windows:")
-                for w in windows:
-                    print(w)
+                [print(w) for w in windows]
                 return windows
     except ErrorReturnCode:
         pass
@@ -160,7 +154,8 @@ def get_window_info(app_name, visible_apps=None):
 
 def generate_screenshot_filename(window_title, timestamp):
     """Generate a clean filename for the screenshot."""
-    clean_title = window_title.replace("/", "-").replace(":", "-").strip() if window_title else "Window"
+    char_map = str.maketrans({"/": "-", ":": "-"})
+    clean_title = window_title.translate(char_map).strip() if window_title else "Window"
 
     date_str = timestamp.strftime('%Y-%m-%d')
     time_str = timestamp.strftime('%-I.%M.%S %p')
@@ -234,8 +229,7 @@ def main():
 
     if args.list:
         print("Visible applications:")
-        for app in sorted(get_visible_apps()):
-            print(f"  {app}")
+        [print(f"  {app}") for app in sorted(get_visible_apps())]
         sys.exit(0)
 
     if not args.app_name:
@@ -259,19 +253,20 @@ def main():
             print(f"No matching applications found for \"{search_pattern}\".")
             sys.exit(1)
         print(f"Found matching applications for \"{search_pattern}\":")
-        for app in matched_apps:
-            print(f"  {app}")
-            all_windows.extend((app, w) for w in get_window_info(app, visible_apps) if w)
+        [
+            print(f"  {app}") or all_windows.extend((app, w) for w in get_window_info(app, visible_apps) if w)
+            for app in matched_apps
+        ]
     if not all_windows:
         print("No windows found to capture.")
         sys.exit(1)
 
-    parsed_windows = []
-    for app_name, window_info in all_windows:
-        if parsed := parse_window_info(window_info):
-            parsed['app'] = app_name
-            if not should_filter_window(parsed['title'], parsed['width'], parsed['height']):
-                parsed_windows.append(parsed)
+    parsed_windows = [
+        {**parsed, 'app': app_name}
+        for app_name, window_info in all_windows
+        if (parsed := parse_window_info(window_info)) is not None
+        and not should_filter_window(parsed['title'], parsed['width'], parsed['height'])
+    ]
 
     if not parsed_windows:
         print("Could not parse window information.")
@@ -284,8 +279,7 @@ def main():
             print(f"  {selected_window['app']}: {selected_window['title'] or '[No Title]'}")
     else:
         print(f"\nFound {len(parsed_windows)} windows:")
-        for i, window in enumerate(parsed_windows, 1):
-            print(f"{i}. {window['app']}: {window['title'] or '[No Title]'}")
+        [print(f"{i}. {window['app']}: {window['title'] or '[No Title]'}") for i, window in enumerate(parsed_windows, 1)]
         while True:
             try:
                 choice = input(f"\nSelect window to capture (1-{len(parsed_windows)}) [1]: ").strip() or "1"
