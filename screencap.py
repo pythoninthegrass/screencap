@@ -21,7 +21,9 @@ Note:
         Multi-word app names: screencap "visual studio code"
 """
 
-import re, shlex, sys
+import re
+import shlex
+import sys
 from datetime import datetime
 from pathlib import Path
 from sh import ErrorReturnCode, getwindowid, osascript, screencapture
@@ -64,18 +66,18 @@ def find_matching_apps(apps, search_pattern):
     exact_matches = [app for app in apps if app.lower() == search_lower]
     if exact_matches:
         return exact_matches
-    
+
     partial_matches = [app for app in apps if search_lower in app.lower()]
     if partial_matches:
         return sorted(partial_matches, key=lambda x: (x.lower().find(search_lower), len(x)))
-    
+
     word_matches = []
     search_words = search_lower.split()
     for app in apps:
         app_lower = app.lower()
         if all(word in app_lower for word in search_words):
             word_matches.append(app)
-    
+
     return sorted(word_matches, key=lambda x: len(x))
 
 
@@ -97,7 +99,7 @@ def get_window_info(app_name, visible_apps=None):
                     return windows
         except ErrorReturnCode:
             continue
-    
+
     if not windows and visible_apps:
         matched_apps = find_matching_apps(visible_apps, app_name)
         for matched_app in matched_apps:
@@ -114,7 +116,7 @@ def get_window_info(app_name, visible_apps=None):
                             return windows
                 except ErrorReturnCode:
                     continue
-    
+
     if not windows:
         print(f"No windows found for \"{app_name}\".")
     return windows
@@ -175,7 +177,7 @@ def main():
     if not visible_apps:
         print("No visible applications found.")
         sys.exit(1)
-    
+
     all_windows = [(search_pattern, w) for w in get_window_info(search_pattern, visible_apps) if w]
     if all_windows:
         print(f"Found windows for \"{search_pattern}\"")
