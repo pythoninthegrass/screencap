@@ -117,11 +117,14 @@ class TestScreencapIntegration:
         """Helper to run screencap command."""
         import os
 
+        # Get the repository root directory dynamically
+        repo_root = Path(__file__).parent.parent
+
         cmd = ["python", "screencap.py"] + list(args)
         # Pass current environment including SCREENSHOT_DIR
         env = os.environ.copy()
         result = subprocess.run(
-            cmd, cwd="/Users/lance/git/screen_cap", input=input_text, text=True, capture_output=True, timeout=timeout, env=env
+            cmd, cwd=str(repo_root), input=input_text, text=True, capture_output=True, timeout=timeout, env=env
         )
         return result
 
