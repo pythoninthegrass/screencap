@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 # /// script
-# requires-python = ">=3.13,<3.14"
+# requires-python = ">=3.12,<3.13"
 # dependencies = [
 #     "python-decouple>=3.8",
 #     "sh>=2.2.2",
